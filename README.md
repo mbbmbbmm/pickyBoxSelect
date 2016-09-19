@@ -3,6 +3,8 @@
 Blender add-on that box selects edges or faces if their vertices are all within the box.
 
 **Installation:** Unzip folder. In Blender go to File>User Preferences>Install from File... and chose PickyBoxSelect.py  
-Search for it in the Add-ons tab and check the check box to activate. 
+Search for it in the Add-ons tab and check the check box to activate.
 
 **Usage:** Search for 'picky box' in the space bar menu or assign a hotkey (e.g. Os-Key+Alt+b) for 'mesh.picky_box_select'. Use like the normal border select.
+
+**Planned:** Deselect via middle mouse.

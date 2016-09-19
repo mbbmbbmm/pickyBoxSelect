@@ -80,6 +80,7 @@ class SelectOperator(bpy.types.Operator):
     """picky box selection """
     bl_idname = "mesh.picky_box_select"
     bl_label = "Picky Box Select"
+    bl_options = {'REGISTER', 'UNDO'}
 
     min_x = IntProperty(default = 0)
     min_y = IntProperty(default = 0)
