@@ -39,6 +39,8 @@ faceindices = []
 newfaceindices = []
 edgeindices = []
 newedgeindices = []
+vertindices = []
+newvertindices = []
 
 def draw_callback_px(self, context):
 
@@ -98,6 +100,13 @@ def cacheselection():
         global edgeindices
         edgeindices = [e.index for e in current_object.data.edges if e.select]
         bpy.ops.object.mode_set(mode='EDIT')
+    
+    elif bpy.context.tool_settings.mesh_select_mode[0]:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global vertindices
+        vertindices = [v.index for v in current_object.data.vertices if v.select]
+        bpy.ops.object.mode_set(mode='EDIT')
                     
     return
 
@@ -114,6 +123,12 @@ def cachenewselection():
         current_object = bpy.context.active_object
         global newedgeindices
         newedgeindices = [e.index for e in current_object.data.edges if e.select]
+        bpy.ops.object.mode_set(mode='EDIT')
+    elif selectModeAtStart == 0:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global newvertindices
+        newvertindices = [v.index for v in current_object.data.vertices if v.select]
         bpy.ops.object.mode_set(mode='EDIT')
 
 
@@ -158,6 +173,22 @@ def endselection(middle):
         if middle:
             for neidx in newedgeindices:
                 current_object.data.edges[neidx].select = False
+        bpy.ops.object.mode_set(mode='EDIT')
+        selectModeAtStart = 0
+
+    # and even vert select mode
+    elif selectModeAtStart == 0:
+        if middle:
+            cachenewselection()
+            bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global vertindices
+        for vidx in vertindices:
+            current_object.data.vertices[vidx].select = True
+        if middle:
+            for nvidx in newvertindices:
+                current_object.data.vertices[nvidx].select = False
         bpy.ops.object.mode_set(mode='EDIT')
         selectModeAtStart = 0
     return
