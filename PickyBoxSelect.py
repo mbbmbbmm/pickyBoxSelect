@@ -36,7 +36,9 @@ from bpy.props import IntProperty, BoolProperty
 
 selectModeAtStart = 0
 faceindices = []
+newfaceindices = []
 edgeindices = []
+newedgeindices = []
 
 def draw_callback_px(self, context):
 
@@ -76,6 +78,91 @@ def draw_callback_px(self, context):
     bgl.glColor4f(0.0, 0.0, 0.0, 1.0)
 
 
+#press
+def cacheselection():
+    # cache start select mode, append existing selection to list
+    if bpy.context.tool_settings.mesh_select_mode[2]:
+        global selectModeAtStart
+        selectModeAtStart = 2
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global faceindices
+        faceindices = [f.index for f in current_object.data.polygons if f.select]
+        bpy.ops.object.mode_set(mode='EDIT')
+    
+    elif bpy.context.tool_settings.mesh_select_mode[1]:
+        global selectModeAtStart
+        selectModeAtStart = 1
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global edgeindices
+        edgeindices = [e.index for e in current_object.data.edges if e.select]
+        bpy.ops.object.mode_set(mode='EDIT')
+                    
+    return
+
+def cachenewselection():
+    global selectModeAtStart
+    if selectModeAtStart == 2:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global newfaceindices
+        newfaceindices = [f.index for f in current_object.data.polygons if f.select]
+        bpy.ops.object.mode_set(mode='EDIT')
+    elif selectModeAtStart == 1:
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global newedgeindices
+        newedgeindices = [e.index for e in current_object.data.edges if e.select]
+        bpy.ops.object.mode_set(mode='EDIT')
+
+
+#release
+def prepareendselection():
+    # if not in vertex select mode switch to it and make a clean sweep
+    if not bpy.context.tool_settings.mesh_select_mode[0]:
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+    return
+    
+def endselection(middle):
+    # switch to face select mode, select faces from face index list
+    global selectModeAtStart
+    if selectModeAtStart == 2:
+        if middle:#if middle mouse cache selection and clean sweep again
+            cachenewselection()
+            bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global faceindices
+        for fidx in faceindices:
+            current_object.data.polygons[fidx].select = True
+        if middle:
+            for nfidx in newfaceindices:
+                current_object.data.polygons[nfidx].select = False
+        bpy.ops.object.mode_set(mode='EDIT')
+        selectModeAtStart = 0
+
+    # similarly if in edge select mode
+    elif selectModeAtStart == 1:
+        if middle:#if middle mouse cache selection and clean sweep again
+            cachenewselection()
+            bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.context.tool_settings.mesh_select_mode = (False, True, False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        current_object = bpy.context.active_object
+        global edgeindices
+        for eidx in edgeindices:
+            current_object.data.edges[eidx].select = True
+        if middle:
+            for neidx in newedgeindices:
+                current_object.data.edges[neidx].select = False
+        bpy.ops.object.mode_set(mode='EDIT')
+        selectModeAtStart = 0
+    return
+
+
 class SelectOperator(bpy.types.Operator):
     """picky box selection """
     bl_idname = "mesh.picky_box_select"
@@ -88,7 +175,7 @@ class SelectOperator(bpy.types.Operator):
     max_y = IntProperty()
 
     selecting = BoolProperty(default = False) # just for drawing in bgl
-    
+
 
     def modal(self, context, event):
         context.area.tag_redraw()
@@ -98,36 +185,14 @@ class SelectOperator(bpy.types.Operator):
 
         elif event.type == 'LEFTMOUSE':
             if event.value == 'PRESS': # start selection
-                
-                # cache start select mode, append existing selection to list, deselect all, switch to vert select mode
-                if bpy.context.tool_settings.mesh_select_mode[2]:
-                    global selectModeAtStart
-                    selectModeAtStart= 2
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    current_object = bpy.context.active_object
-                    global faceindices
-                    faceindices = [f.index for f in current_object.data.polygons if f.select]
-                    bpy.ops.object.mode_set(mode='EDIT')
-                
-                if bpy.context.tool_settings.mesh_select_mode[1]:
-                    global selectModeAtStart
-                    selectModeAtStart= 1
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    current_object = bpy.context.active_object
-                    global edgeindices
-                    edgeindices = [e.index for e in current_object.data.edges if e.select]
-                    bpy.ops.object.mode_set(mode='EDIT')
-                                
+                cacheselection()
                 self.selecting = True
                 self.min_x = event.mouse_region_x
                 self.min_y = event.mouse_region_y
 
             if event.value == 'RELEASE': # end of selection
-                # if not in vertex select mode switch to it and make a clean sweep
-                if not bpy.context.tool_settings.mesh_select_mode[0]:
-                    bpy.context.tool_settings.mesh_select_mode = (True, False, False)
-                    bpy.ops.mesh.select_all(action='DESELECT')
-                
+                prepareendselection()
+
                 # we have to sort the coordinates before passing them to select_border()
                 self.max_x = max(event.mouse_region_x, self.min_x)
                 self.max_y = max(event.mouse_region_y, self.min_y)
@@ -136,30 +201,31 @@ class SelectOperator(bpy.types.Operator):
 
                 bpy.ops.view3d.select_border(gesture_mode=3, xmin=self.min_x, xmax=self.max_x, ymin=self.min_y, ymax=self.max_y, extend=True)
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-                
-                # switch to face select mode, select faces aus face index list
-                if selectModeAtStart == 2:
-                    bpy.context.tool_settings.mesh_select_mode = (False, False, True)
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    current_object = bpy.context.active_object
-        
-                    for fidx in faceindices:
-                        current_object.data.polygons[fidx].select = True
-                    bpy.ops.object.mode_set(mode='EDIT')
-                    selectModeAtStart = 0
-                        
-                    
-                # same for edge select mode
-                if selectModeAtStart == 1:
-                    bpy.context.tool_settings.mesh_select_mode = (False, True, False)
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    current_object = bpy.context.active_object
-        
-                    for eidx in edgeindices:
-                        current_object.data.edges[eidx].select = True
-                    bpy.ops.object.mode_set(mode='EDIT')
-                    selectModeAtStart = 0
-                                
+
+                endselection(False)
+                return {'FINISHED'}
+
+        elif event.type == 'MIDDLEMOUSE':
+            if event.value == 'PRESS':
+                cacheselection()
+                self.selecting = True
+                self.min_x = event.mouse_region_x
+                self.min_y = event.mouse_region_y
+
+            if event.value == 'RELEASE': # end of selection
+                bpy.ops.mesh.select_all(action='INVERT')
+                prepareendselection()
+
+                # we have to sort the coordinates before passing them to select_border()
+                self.max_x = max(event.mouse_region_x, self.min_x)
+                self.max_y = max(event.mouse_region_y, self.min_y)
+                self.min_x = min(event.mouse_region_x, self.min_x)
+                self.min_y = min(event.mouse_region_y, self.min_y)
+
+                bpy.ops.view3d.select_border(gesture_mode=3, xmin=self.min_x, xmax=self.max_x, ymin=self.min_y, ymax=self.max_y, extend=True)
+                bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+
+                endselection(True)
                 return {'FINISHED'}
 
         elif event.type in {'RIGHTMOUSE', 'ESC'}:
@@ -167,6 +233,8 @@ class SelectOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
+
+
 
     def invoke(self, context, event):
 
